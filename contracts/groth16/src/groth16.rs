@@ -1,5 +1,4 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use core::ops::Neg;
 use soroban_sdk::{
     crypto::bls12_381::{Bls12_381, Fr, G1Affine, G2Affine},
     vec, Vec,
@@ -41,40 +40,18 @@ pub fn verify_proof(
         );
     }
 
-    // TODO: to get negative of G1Affine, we use ark since we don't have negation in stellar bls12_381
-    let mut neg_acc_bytes = [0u8; 96];
-    G1AffineArk::deserialize_uncompressed(&acc.to_array()[..])
-        .unwrap()
-        .neg()
-        .serialize_uncompressed(&mut neg_acc_bytes[..])
+    // 3. Compute neg_a = -proof.a
+    // TODO: use ark as a workaround until the native implementation is available
+    let mut neg_a = [0u8; 96];
+    (-G1AffineArk::deserialize_uncompressed(&proof.a.to_array()[..]).unwrap())
+        .serialize_uncompressed(&mut neg_a[..])
         .unwrap();
 
-    let mut neg_alpha_g1_bytes = [0u8; 96];
-    G1AffineArk::deserialize_uncompressed(&vk.alpha_g1.to_array()[..])
-        .unwrap()
-        .neg()
-        .serialize_uncompressed(&mut neg_alpha_g1_bytes[..])
-        .unwrap();
+    let neg_a = G1Affine::from_array(bls.env(), &neg_a);
 
-    let mut neg_c = [0u8; 96];
-    G1AffineArk::deserialize_uncompressed(&proof.c.to_array()[..])
-        .unwrap()
-        .neg()
-        .serialize_uncompressed(&mut neg_c[..])
-        .unwrap();
-
-    let neg_alpha_g1 = G1Affine::from_array(bls.env(), &neg_alpha_g1_bytes);
-    let neg_acc = G1Affine::from_array(bls.env(), &neg_acc_bytes);
-    let neg_proof_c = G1Affine::from_array(bls.env(), &neg_c);
-
-    bls.pairing_check(
-        vec![
-            bls.env(),
-            proof.a.clone(),
-            neg_alpha_g1,
-            neg_acc,
-            neg_proof_c,
-        ],
+    // 4. Pairing check e(-proof.a, proof.b) * e(vk.alpha_g1, vk.beta_g2, vk.gamma_g2) * e(vk.gamma_g2, acc) * e(proof.c, vk.delta_g2) == 1
+    let a = bls.pairing_check(
+        vec![bls.env(), neg_a, vk.alpha_g1.clone(), acc, proof.c.clone()],
         vec![
             bls.env(),
             proof.b.clone(),
@@ -82,7 +59,14 @@ pub fn verify_proof(
             vk.gamma_g2.clone(),
             vk.delta_g2.clone(),
         ],
-    )
+    );
+
+    #[cfg(test)]
+    {
+        extern crate std;
+        std::println!("pairing_check: {:?}", a);
+    }
+    return a;
 }
 
 // pub fn is_less_than_bn254_field_size_be(bytes: &[u8; 32]) -> bool {
