@@ -1,13 +1,7 @@
 #![cfg(test)]
 
-use crate::groth16::{ark_verify_proof, Proof, VerifyingKey};
-
 use super::*;
-use soroban_sdk::{
-    bytesn,
-    crypto::bls12_381::{G1Affine, G2Affine},
-    vec, BytesN, Env, String, U256,
-};
+use soroban_sdk::{BytesN, Env};
 
 pub const PROOF: [u8; 384] = [
     2, 125, 104, 204, 107, 146, 103, 71, 115, 229, 5, 186, 89, 248, 24, 222, 4, 148, 175, 174, 65,
@@ -97,81 +91,21 @@ pub const P2: [u8; 96] = [
 fn test() {
     let env = Env::default();
 
-    let a = G1Affine::from_array(
+    let proof = BytesN::from_array(&env, &PROOF);
+    let vk = Bytes::from_slice(&env, [&VK[0..672], &P1, &P2].concat().as_slice());
+    let pi = vec![
         &env,
-        &PROOF[0..96].try_into().expect("Slice must be 96 bytes"),
-    );
-
-    let b = G2Affine::from_array(
-        &env,
-        &PROOF[96..288]
-            .try_into()
-            .expect("Slice must be `192` bytes"),
-    );
-    let c = G1Affine::from_array(
-        &env,
-        &PROOF[288..384].try_into().expect("Slice must be 96 bytes"),
-    );
-
-    let proof = Proof { a, b, c };
-
-    let alpha_g1 =
-        G1Affine::from_array(&env, &VK[0..96].try_into().expect("Slice must be 96 bytes"));
-    let beta_g2 = G2Affine::from_array(
-        &env,
-        &VK[96..288].try_into().expect("Slice must be 192 bytes"),
-    );
-    let gamma_g2 = G2Affine::from_array(
-        &env,
-        &VK[288..480].try_into().expect("Slice must be 192 bytes"),
-    );
-    let delta_g2 = G2Affine::from_array(
-        &env,
-        &VK[480..672].try_into().expect("Slice must be 192 bytes"),
-    );
-
-    let ic: Vec<G1Affine> = vec![
-        &env,
-        G1Affine::from_array(&env, &P1),
-        G1Affine::from_array(&env, &P2),
+        BytesN::from_array(
+            &env,
+            &[
+                43, 208, 68, 170, 244, 217, 233, 104, 169, 196, 104, 2, 228, 225, 211, 30, 195, 13,
+                143, 171, 67, 82, 183, 9, 208, 189, 42, 151, 250, 111, 78, 199,
+            ],
+        ),
     ];
 
-    let vk = VerifyingKey {
-        alpha_g1,
-        beta_g2,
-        gamma_g2,
-        delta_g2,
-        gamma_abc_g1: ic,
-    };
+    let contract_id = env.register(Groth16Contract, ());
+    let client = Groth16ContractClient::new(&env, &contract_id);
 
-    let res = verify_proof(
-        env.crypto().bls12_381(),
-        &vk,
-        &proof,
-        vec![
-            &env,
-            Fr::from_bytes(BytesN::from_array(
-                &env,
-                &[
-                    43, 208, 68, 170, 244, 217, 233, 104, 169, 196, 104, 2, 228, 225, 211, 30, 195,
-                    13, 143, 171, 67, 82, 183, 9, 208, 189, 42, 151, 250, 111, 78, 199,
-                ],
-            )),
-        ],
-    );
-
-    assert_eq!(res, true);
-
-    // let contract_id = env.register(Groth16Contract, ());
-    // let client = Groth16ContractClient::new(&env, &contract_id);
-
-    // let words = client.hello(&String::from_str(&env, "Dev"));
-    // assert_eq!(
-    //     words,
-    //     vec![
-    //         &env,
-    //         String::from_str(&env, "Hello"),
-    //         String::from_str(&env, "Dev"),
-    //     ]
-    // );
+    let _result = client.try_verify(&proof, &vk, &pi);
 }

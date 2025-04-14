@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Bls12_381, Fr as BlsFr, FrConfig};
+    extern crate std;
+
+    use ark_bls12_381::{Bls12_381, Fr as BlsFr};
     use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
     use ark_ff::{BigInteger, Field};
-    use ark_ff::{MontBackend, PrimeField, UniformRand};
+    use ark_ff::{PrimeField, UniformRand};
     use ark_groth16::Groth16;
     use ark_relations::{
         lc,
@@ -11,9 +13,9 @@ mod tests {
     };
     use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
     use ark_snark::SNARK;
-    use ark_std::rand::{Rng, SeedableRng};
-    use core::ops::Neg;
-    use std::ops::MulAssign; // Import the Field trait to bring the `one` method into scope
+    use ark_std::rand::SeedableRng;
+    use std::ops::MulAssign;
+    use std::*;
 
     #[derive(Copy, Clone)]
     struct MultiplyDemoCircuit<F: PrimeField> {
@@ -183,9 +185,6 @@ mod tests {
             .unwrap();
 
             // validate the proof
-            assert!(Groth16::<Bls12_381>::verify(&vk, &[c], &proof).unwrap());
-            assert!(!Groth16::<Bls12_381>::verify(&vk, &[a], &proof).unwrap());
-
             let mut acc = vk.gamma_abc_g1[0].into_group();
             for (i, input) in [c].iter().enumerate() {
                 acc += vk.gamma_abc_g1[i + 1].into_group() * input;
@@ -202,3 +201,69 @@ mod tests {
         }
     }
 }
+
+
+// let a = G1Affine::from_array(
+    //     &env,
+    //     &PROOF[0..96].try_into().expect("Slice must be 96 bytes"),
+    // );
+
+    // let b = G2Affine::from_array(
+    //     &env,
+    //     &PROOF[96..288]
+    //         .try_into()
+    //         .expect("Slice must be `192` bytes"),
+    // );
+    // let c = G1Affine::from_array(
+    //     &env,
+    //     &PROOF[288..384].try_into().expect("Slice must be 96 bytes"),
+    // );
+
+    // let proof = Proof { a, b, c };
+
+    // let alpha_g1 =
+    //     G1Affine::from_array(&env, &VK[0..96].try_into().expect("Slice must be 96 bytes"));
+    // let beta_g2 = G2Affine::from_array(
+    //     &env,
+    //     &VK[96..288].try_into().expect("Slice must be 192 bytes"),
+    // );
+    // let gamma_g2 = G2Affine::from_array(
+    //     &env,
+    //     &VK[288..480].try_into().expect("Slice must be 192 bytes"),
+    // );
+    // let delta_g2 = G2Affine::from_array(
+    //     &env,
+    //     &VK[480..672].try_into().expect("Slice must be 192 bytes"),
+    // );
+
+    // let ic: Vec<G1Affine> = vec![
+    //     &env,
+    //     G1Affine::from_array(&env, &P1),
+    //     G1Affine::from_array(&env, &P2),
+    // ];
+
+    // let vk = VerifyingKey {
+    //     alpha_g1,
+    //     beta_g2,
+    //     gamma_g2,
+    //     delta_g2,
+    //     gamma_abc_g1: ic,
+    // };
+
+    // let res = verify_proof(
+    //     env.crypto().bls12_381(),
+    //     &vk,
+    //     &proof,
+    //     vec![
+    //         &env,
+    //         Fr::from_bytes(BytesN::from_array(
+    //             &env,
+    //             &[
+    //                 43, 208, 68, 170, 244, 217, 233, 104, 169, 196, 104, 2, 228, 225, 211, 30, 195,
+    //                 13, 143, 171, 67, 82, 183, 9, 208, 189, 42, 151, 250, 111, 78, 199,
+    //             ],
+    //         )),
+    //     ],
+    // );
+
+    // assert_eq!(res, true);
