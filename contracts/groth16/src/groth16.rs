@@ -1,15 +1,45 @@
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use soroban_sdk::{
     crypto::bls12_381::{Bls12_381, Fr, G1Affine, G2Affine},
-    vec, Vec,
+    vec, Bytes, BytesN, Vec,
 };
 
 use ark_bls12_381::G1Affine as G1AffineArk;
+
+use crate::errors::Groth16Error;
 
 pub struct Proof {
     pub a: G1Affine,
     pub b: G2Affine,
     pub c: G1Affine,
+}
+
+impl Proof {
+    pub fn try_from_bytes(bytes: BytesN<384>) -> Result<Self, Groth16Error> {
+        let arr = &bytes.to_array();
+
+        let a = G1Affine::from_array(
+            &bytes.env(),
+            &arr[0..96]
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG1Length)?,
+        );
+
+        let b = G2Affine::from_array(
+            &bytes.env(),
+            &arr[96..288]
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG2Length)?,
+        );
+        let c = G1Affine::from_array(
+            &bytes.env(),
+            &arr[288..384]
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG1Length)?,
+        );
+
+        Ok(Proof { a, b, c })
+    }
 }
 
 pub struct VerifyingKey {
@@ -18,6 +48,73 @@ pub struct VerifyingKey {
     pub gamma_g2: G2Affine,
     pub delta_g2: G2Affine,
     pub gamma_abc_g1: Vec<G1Affine>, // precomputed public inputs
+}
+
+impl VerifyingKey {
+    pub fn try_from_bytes(bytes: Bytes, public_inputs_len: u32) -> Result<Self, Groth16Error> {
+        // Check vk length: must be equal to 672 + 96 * n
+        // where n is the number of public inputs
+        if bytes.len() != 672 + 96 * (public_inputs_len + 1) {
+            return Err(Groth16Error::IncompatibleVerifyingKeyWithNrPublicInputs);
+        }
+
+        let alpha = G1Affine::from_array(
+            &bytes.env(),
+            &bytes
+                .slice(0..96)
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG1Length)?,
+        );
+        let beta = G2Affine::from_array(
+            &bytes.env(),
+            &bytes
+                .slice(96..288)
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG2Length)?,
+        );
+        let gamma = G2Affine::from_array(
+            &bytes.env(),
+            &bytes
+                .slice(288..480)
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG2Length)?,
+        );
+        let delta = G2Affine::from_array(
+            &bytes.env(),
+            &bytes
+                .slice(480..672)
+                .try_into()
+                .map_err(|_| Groth16Error::InvalidG2Length)?,
+        );
+
+        let mut ic: Vec<G1Affine> = vec![
+            &bytes.env(),
+            G1Affine::from_array(
+                &bytes.env(),
+                &bytes
+                    .slice(672..768)
+                    .try_into()
+                    .map_err(|_| Groth16Error::InvalidG1Length)?,
+            ),
+        ];
+        for i in 0..public_inputs_len {
+            ic.push_back(G1Affine::from_array(
+                &bytes.env(),
+                &bytes
+                    .slice(672 + (i + 1) * 96..768 + (i + 1) * 96)
+                    .try_into()
+                    .map_err(|_| Groth16Error::InvalidG1Length)?,
+            ));
+        }
+
+        Ok(VerifyingKey {
+            alpha_g1: alpha,
+            beta_g2: beta,
+            gamma_g2: gamma,
+            delta_g2: delta,
+            gamma_abc_g1: ic,
+        })
+    }
 }
 
 pub fn verify_proof(

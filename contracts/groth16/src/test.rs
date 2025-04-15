@@ -2,7 +2,7 @@
 extern crate std;
 
 use super::*;
-use soroban_sdk::{BytesN, Env};
+use soroban_sdk::{vec, BytesN, Env};
 
 pub const PROOF: [u8; 384] = [
     2, 125, 104, 204, 107, 146, 103, 71, 115, 229, 5, 186, 89, 248, 24, 222, 4, 148, 175, 174, 65,
